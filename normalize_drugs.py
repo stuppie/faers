@@ -1,4 +1,3 @@
-# https://cloud.google.com/bigquery/public-data/rxnorm#what_are_the_rxcui_codes_for_the_ingredients_of_a_list_of_drugs
 import shelve
 import time
 from tqdm import tqdm
@@ -109,37 +108,28 @@ del drug['drugname_MIN_cui']
 # combine new duplicates cuis
 drug = drug.groupby('drugname_IN_cui').agg({'c': sum, 'DRUGNAME_orig': sum}).reset_index()
 drug = drug.sort_values("c", ascending=False)
+drug = drug[drug.drugname_IN_cui.map(bool)]
 # example of what this does now
 # list(drug[drug.drugname_IN_cui == 632].DRUGNAME_orig)
 
+#https://stackoverflow.com/questions/12680754/split-explode-pandas-dataframe-string-entry-to-separate-rows
+b = pd.DataFrame(drug.DRUGNAME_orig.tolist(), index=drug.drugname_IN_cui).stack()
+b = b.reset_index()[[0, 'drugname_IN_cui']]
+b.columns = ['DRUGNAME_orig', 'drugname_IN_cui']
 
+from sqlalchemy import create_engine
+engine = create_engine('mysql+mysqlconnector://root@localhost/faers')
+b.to_sql("drug_label_mapping", engine, chunksize=10000, if_exists='replace')
 
-# get the indications for a drug
-drug = drug[drug.drugname_IN_cui.map(bool)]
-top_indic_query = """
-SELECT
-  COUNT(*)           AS count,
-  indication.INDI_PT AS 'indication_name',
-  indication.indic_umls,
-  indication.indic_hpo,
-  indication.indic_mondo
-FROM indication_latest_norm as indication
-  LEFT JOIN drug_latest ON drug_latest.primaryid = indication.primaryid AND
-                    indication.indi_drug_seq = drug_latest.drug_seq
-WHERE drug_latest.role_cod = ('PS') AND drug_latest.DRUGNAME IN ({})
-GROUP BY indication_name,indication.indic_umls, indication.indic_hpo, indication.indic_mondo having count>10
-ORDER BY count DESC
+# do the mapping and store in mysql. only keeping those with matched rxnorm IDs
+s = """
+CREATE TABLE drug_latest_norm
+SELECT drugname_IN_cui, drug_latest.* from drug_latest JOIN drug_label_mapping on
+drug_latest.DRUGNAME = drug_label_mapping.DRUGNAME_orig
 """
-indications = dict()
-for _, row in tqdm(drug.iterrows()):
-    this_query = top_indic_query.format(",".join(map(lambda s: "'" + s + "'", row.DRUGNAME_orig)))
-    top = pd.read_sql_query(this_query, mydb)
-    indications[row.drugname_IN_cui] = top
+cursor = mydb.cursor()
+cursor.execute(s)
 
-import pickle
-with open("indications.pkl", 'wb') as f:
-    pickle.dump(indications, f)
-indications = pickle.load(open("indications.pkl", 'rb'))
-
-indic_df = pd.DataFrame([{"drug_rxcui": k, "indications_umls": "|".join(list(df.indic_umls.dropna()))} for k, df in indications.items()])
-indic_df.to_csv("faers_indications.csv")
+cursor.execute("""alter table drug_latest_norm add index drugname_in_cui (drugname_in_cui)""")
+cursor.execute("""alter table drug_latest_norm add index PRIMARYID (PRIMARYID)""")
+mydb.commit()
