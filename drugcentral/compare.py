@@ -7,8 +7,8 @@ dcdf.rename(columns={'identifier': 'drug_rxcui',
                      'umls_cui': 'indications_umls',
                      'concept_name': 'indications_label'}, inplace=True)
 dcdf = dcdf.set_index("drug_rxcui")
-dcdf.indications_umls = dcdf.indications_umls.map(lambda x:"|".join(x))
-dcdf.indications_label = dcdf.indications_label.map(lambda x:"|".join(x))
+dcdf.indications_umls = dcdf.indications_umls.map(lambda x: "|".join(x))
+dcdf.indications_label = dcdf.indications_label.map(lambda x: "|".join(x))
 
 faersdf = pd.read_csv("faers_indications.csv", index_col=0, dtype=str).dropna()
 faersdf = faersdf.set_index("drug_rxcui")

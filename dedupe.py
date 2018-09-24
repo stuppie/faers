@@ -4,11 +4,9 @@
 # example CASEID = 11927405
 # select * from drug where caseid=11927405;
 
-import pandas as pd
 import mysql.connector
-
-mydb = mysql.connector.connect(host="localhost", user="root", passwd="")
-mydb.connect(database="faers")
+from settings import mysql_user, mysql_pass, mysql_host, mysql_db
+mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
 cursor = mydb.cursor()
 
 # this query gets the latest primary id for each case id (highest version), then gets only the drug rows

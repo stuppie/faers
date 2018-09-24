@@ -5,17 +5,15 @@ import requests
 import pandas as pd
 from utils import get_tty_df_from_cuis
 import mysql.connector
+from sqlalchemy import create_engine
+from settings import mysql_user, mysql_pass, mysql_host, mysql_db
+
+mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
+engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
 
 #########
 # Get all drugs and drug products
 #########
-
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    passwd=""
-)
-mydb.connect(database="faers")
 
 query = """SELECT COUNT(*) AS c, DRUGNAME FROM drug_latest GROUP BY DRUGNAME"""
 drug = pd.read_sql_query(query, mydb)
@@ -37,7 +35,7 @@ c = dict(zip(drug.DRUGNAME, drug.c))
 
 # export rxnconso_current table
 # https://bigquery.cloud.google.com/table/bigquery-public-data:nlm_rxnorm.rxnconso_current
-rxconso = pd.read_csv("data/rxnconso.csv")
+rxconso = pd.read_csv("data/rxnconso_current.csv.gz")
 rxconso['str'] = rxconso['str'].str.lower().str.strip()
 rxconso.drop_duplicates(subset=['rxcui', 'str'], inplace=True)
 drugname_rxcui = dict(zip(rxconso.str, rxconso.rxcui))
@@ -92,8 +90,10 @@ drug = drug.sort_values("c", ascending=False)
 # drug[drug.drugname_cui == 632]
 
 # convert all CUIs down to Ingredient level
+# https://cloud.google.com/bigquery/public-data/rxnorm#what_are_the_rxcui_codes_for_the_ingredients_of_a_list_of_drugs
+rxn_all_pathways_df = pd.read_csv("data/rxn_all_pathways_current.csv.gz")
 rxcuis = set(drug.drugname_cui)
-dfpath = get_tty_df_from_cuis(rxcuis)
+dfpath = rxn_all_pathways_df[rxn_all_pathways_df.TARGET_RXCUI.isin(rxcuis)]
 dfpath_in = dfpath.query("TARGET_TTY == 'IN'")
 dfpath_min = dfpath.query("TARGET_TTY == 'MIN'")
 source_target_in = dfpath_in.groupby("SOURCE_RXCUI").TARGET_RXCUI.apply(set).to_dict()
@@ -117,8 +117,7 @@ b = pd.DataFrame(drug.DRUGNAME_orig.tolist(), index=drug.drugname_IN_cui).stack(
 b = b.reset_index()[[0, 'drugname_IN_cui']]
 b.columns = ['DRUGNAME_orig', 'drugname_IN_cui']
 
-from sqlalchemy import create_engine
-engine = create_engine('mysql+mysqlconnector://root@localhost/faers')
+
 b.to_sql("drug_label_mapping", engine, chunksize=10000, if_exists='replace')
 
 # do the mapping and store in mysql. only keeping those with matched rxnorm IDs

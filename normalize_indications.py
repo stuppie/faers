@@ -1,11 +1,16 @@
 import os
-from collections import Counter
 import pandas as pd
 import mysql.connector
+from sqlalchemy import create_engine
 
+from settings import mysql_user, mysql_pass, mysql_host, mysql_db
 
+mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
+engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
+
+# download umls data
 names = "CUI,LAT,TS,LUI,STT,SUI,ISPREF,AUI,SAUI,SCUI,SDUI,SAB,TTY,CODE,STR,SRL,SUPPRESS,CVF,X".split(",")
-umls = pd.read_csv("/home/gstupp/projects/data/2018AA-full/MRCONSO_ENG.RRF.gz",
+umls = pd.read_csv("MRCONSO_ENG.RRF.gz",
                    delimiter="|", names=names, index_col=None, dtype=str,
                    usecols=['CUI', 'CODE', 'STR', 'SAB', 'LAT'])
 
@@ -30,7 +35,7 @@ SELECT * WHERE {
 """
 with open("query.sparql", 'w') as f:
     f.write(s)
-os.system('robot query --input ~/projects/data/mondo.owl --query query.sparql mondo.csv')
+os.system('robot query --input mondo.owl --query query.sparql mondo.csv')
 mondo = pd.read_csv("mondo.csv")
 mondo = mondo[mondo.xref.str.startswith("UMLS:")]
 mondo.xref = mondo.xref.str.replace("UMLS:", "")
@@ -38,13 +43,6 @@ mondo.item = mondo.item.str.replace("http://purl.obolibrary.org/obo/MONDO_", "MO
 umls_mondo = dict(zip(mondo.xref, mondo.item))
 
 ## get all indications
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    passwd=""
-)
-mydb.connect(database="faers")
-
 query = """SELECT * FROM indication_latest"""
 indic = pd.read_sql_query(query, mydb)
 
@@ -57,13 +55,9 @@ del indic['INDI_PT2']
 del indic['ISR']
 del indic['DRUG_SEQ']
 del indic['CASEID']
-indic.to_csv("indications_norm.csv")
-
-import pandas as pd
-from sqlalchemy import create_engine
-indic = pd.read_csv("indications_norm.csv", index_col=0)
-engine = create_engine('mysql+mysqlconnector://root@localhost/faers')
-indic.to_sql("indication_latest_norm", engine, chunksize=100000, if_exists='replace')
+# indic.to_csv("indications_norm.csv")
+# indic = pd.read_csv("indications_norm.csv", index_col=0)
+indic.to_sql("indication_latest_norm", engine, chunksize=10000, if_exists='replace')
 
 cursor = mydb.cursor()
 cursor.execute("""alter table indication_latest_norm add index PRIMARYID (PRIMARYID)""")
