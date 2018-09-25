@@ -3,8 +3,9 @@ import pandas as pd
 import mysql.connector
 from tqdm import tqdm
 
-mydb = mysql.connector.connect(host="localhost", user="root", passwd="")
-mydb.connect(database="faers")
+from settings import mysql_user, mysql_pass, mysql_host, mysql_db
+
+mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
 cursor = mydb.cursor()
 
 top_indic_query = """

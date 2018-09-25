@@ -1,12 +1,13 @@
+import os
 import shelve
 import time
 from tqdm import tqdm
 import requests
 import pandas as pd
-from utils import get_tty_df_from_cuis
 import mysql.connector
 from sqlalchemy import create_engine
 from settings import mysql_user, mysql_pass, mysql_host, mysql_db
+DATA_PATH = "data"
 
 mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
 engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
@@ -35,7 +36,7 @@ c = dict(zip(drug.DRUGNAME, drug.c))
 
 # export rxnconso_current table
 # https://bigquery.cloud.google.com/table/bigquery-public-data:nlm_rxnorm.rxnconso_current
-rxconso = pd.read_csv("data/rxnconso_current.csv.gz")
+rxconso = pd.read_csv(os.path.join(DATA_PATH, "rxnconso_current.csv.gz"))
 rxconso['str'] = rxconso['str'].str.lower().str.strip()
 rxconso.drop_duplicates(subset=['rxcui', 'str'], inplace=True)
 drugname_rxcui = dict(zip(rxconso.str, rxconso.rxcui))
@@ -54,8 +55,8 @@ print(len(nomatches))
 # https://rxnav.nlm.nih.gov/RxNormAPIs.html#uLink=RxNorm_REST_getApproximateMatch
 # https://rxnav.nlm.nih.gov/RxNormApproxMatch.html
 # https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term=STOOL%20SOFTENER%20(DOCUSATE)
-with shelve.open("approx_results.shelve") as approx_results:
-    for s in tqdm(nomatches[:1000]):
+with shelve.open(os.path.join(DATA_PATH, "approx_results.shelve")) as approx_results:
+    for s in tqdm(nomatches[:2000]):
         if s in approx_results:
             continue
         url = "https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term={}"
@@ -75,7 +76,7 @@ with shelve.open("approx_results.shelve") as approx_results:
         approx_results[s] = r
         time.sleep(1)
 
-approx_results = shelve.open("approx_results.shelve")
+approx_results = shelve.open(os.path.join(DATA_PATH, "approx_results.shelve"))
 approx = {k: v[0][0] for k, v in approx_results.items() if v[1] >= 67 and len(v[0]) == 1}
 drug['drugname_cui_approx'] = drug.DRUGNAME.map(lambda x: approx.get(x, ''))
 drug['drugname_cui'] = drug['drugname_cui'].combine_first(drug['drugname_cui_approx'])
@@ -91,7 +92,7 @@ drug = drug.sort_values("c", ascending=False)
 
 # convert all CUIs down to Ingredient level
 # https://cloud.google.com/bigquery/public-data/rxnorm#what_are_the_rxcui_codes_for_the_ingredients_of_a_list_of_drugs
-rxn_all_pathways_df = pd.read_csv("data/rxn_all_pathways_current.csv.gz")
+rxn_all_pathways_df = pd.read_csv(os.path.join(DATA_PATH, "rxn_all_pathways_current.csv.gz"))
 rxcuis = set(drug.drugname_cui)
 dfpath = rxn_all_pathways_df[rxn_all_pathways_df.TARGET_RXCUI.isin(rxcuis)]
 dfpath_in = dfpath.query("TARGET_TTY == 'IN'")
@@ -116,9 +117,7 @@ drug = drug[drug.drugname_IN_cui.map(bool)]
 b = pd.DataFrame(drug.DRUGNAME_orig.tolist(), index=drug.drugname_IN_cui).stack()
 b = b.reset_index()[[0, 'drugname_IN_cui']]
 b.columns = ['DRUGNAME_orig', 'drugname_IN_cui']
-
-
-b.to_sql("drug_label_mapping", engine, chunksize=10000, if_exists='replace')
+b.to_sql("drug_label_mapping", engine, if_exists='replace')
 
 # do the mapping and store in mysql. only keeping those with matched rxnorm IDs
 s = """

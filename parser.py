@@ -1,6 +1,5 @@
 from collections import defaultdict
-from os import listdir
-from os.path import join, isfile
+import os
 import mysql.connector
 import zipfile
 import re
@@ -9,6 +8,8 @@ from tqdm import tqdm
 from sqlalchemy import create_engine
 
 from settings import mysql_user, mysql_pass, mysql_host, mysql_db
+
+FAERS_DATA_PATH = "faers_data"
 
 file_name_to_table_name = {
     'THER': 'therapy',
@@ -77,7 +78,8 @@ def create_tables(valid_files):
 
 
 def get_valid_files():
-    files = ['data/' + f for f in listdir('data') if isfile(join('data', f)) and f[-4:].lower() == '.zip']
+    files = [os.path.join(FAERS_DATA_PATH, f) for f in os.listdir(FAERS_DATA_PATH)]
+    files = [f for f in files if os.path.isfile(f) and f[-4:].lower() == '.zip']
 
     for filename in files:
         if not zipfile.is_zipfile(filename):

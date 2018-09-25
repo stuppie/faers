@@ -1,16 +1,19 @@
 import os
+import subprocess
 import pandas as pd
 import mysql.connector
 from sqlalchemy import create_engine
 
 from settings import mysql_user, mysql_pass, mysql_host, mysql_db
 
+DATA_PATH = "data"
+
 mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
 engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
 
-# download umls data
+# read umls xrefs
 names = "CUI,LAT,TS,LUI,STT,SUI,ISPREF,AUI,SAUI,SCUI,SDUI,SAB,TTY,CODE,STR,SRL,SUPPRESS,CVF,X".split(",")
-umls = pd.read_csv("MRCONSO_ENG.RRF.gz",
+umls = pd.read_csv(os.path.join(DATA_PATH, "MRCONSO_ENG.RRF.gz"),
                    delimiter="|", names=names, index_col=None, dtype=str,
                    usecols=['CUI', 'CODE', 'STR', 'SAB', 'LAT'])
 
@@ -35,8 +38,12 @@ SELECT * WHERE {
 """
 with open("query.sparql", 'w') as f:
     f.write(s)
-os.system('robot query --input mondo.owl --query query.sparql mondo.csv')
-mondo = pd.read_csv("mondo.csv")
+
+robot_call = 'robot query --input {} --query query.sparql {}'.format(os.path.join(DATA_PATH, "mondo.owl"),
+                                                                     os.path.join(DATA_PATH, "mondo.csv"))
+subprocess.check_call(robot_call, shell=True)
+os.remove("query.sparql")
+mondo = pd.read_csv(os.path.join(DATA_PATH, "mondo.csv"))
 mondo = mondo[mondo.xref.str.startswith("UMLS:")]
 mondo.xref = mondo.xref.str.replace("UMLS:", "")
 mondo.item = mondo.item.str.replace("http://purl.obolibrary.org/obo/MONDO_", "MONDO:")
@@ -46,15 +53,13 @@ umls_mondo = dict(zip(mondo.xref, mondo.item))
 query = """SELECT * FROM indication_latest"""
 indic = pd.read_sql_query(query, mydb)
 
-indic['INDI_PT2'] = indic.INDI_PT.str.strip().str.lower()
-indic['indic_umls'] = indic.INDI_PT2.map(str_umls.get)
+indic['indi_pt2'] = indic.indi_pt.str.strip().str.lower()
+indic['indic_umls'] = indic.indi_pt2.map(str_umls.get)
 indic['indic_hpo'] = indic.indic_umls.map(umls_hpo.get)
 indic['indic_mondo'] = indic.indic_umls.map(umls_mondo.get)
 
-del indic['INDI_PT2']
-del indic['ISR']
-del indic['DRUG_SEQ']
-del indic['CASEID']
+del indic['indi_pt2']
+del indic['caseid']
 # indic.to_csv("indications_norm.csv")
 # indic = pd.read_csv("indications_norm.csv", index_col=0)
 indic.to_sql("indication_latest_norm", engine, chunksize=10000, if_exists='replace')

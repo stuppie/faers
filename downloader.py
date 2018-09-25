@@ -4,12 +4,12 @@ import requests
 from urllib.request import urlretrieve
 import re
 
-DATA_PATH = "data"
+FAERS_DATA_PATH = "faers_data"
 URL = "https://fis.fda.gov/extensions/FPD-QDE-FAERS/FPD-QDE-FAERS.html"
 
-if not os.path.isdir(DATA_PATH):
-    os.makedirs(DATA_PATH)
-existing_file_names = set(os.listdir(DATA_PATH))
+if not os.path.isdir(FAERS_DATA_PATH):
+    os.makedirs(FAERS_DATA_PATH)
+existing_file_names = set(os.listdir(FAERS_DATA_PATH))
 
 bs = BeautifulSoup(requests.get(URL).text, "lxml")
 urls = [x['href'] for x in bs.find_all("a") if "ASCII" in x.text]
@@ -25,4 +25,4 @@ print("Download {} new file{}".format(len(urls), "s" if len(urls) != 1 else ""))
 for url in urls:
     file_name = os.path.split(url)[-1]
     print("Downloading: {}".format(file_name))
-    urlretrieve(url, os.path.join(DATA_PATH, file_name))
+    urlretrieve(url, os.path.join(FAERS_DATA_PATH, file_name))
