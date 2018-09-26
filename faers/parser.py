@@ -4,12 +4,11 @@ import mysql.connector
 import zipfile
 import re
 import pandas as pd
+import sys
 from tqdm import tqdm
 from sqlalchemy import create_engine
 
-from settings import mysql_user, mysql_pass, mysql_host, mysql_db
-
-FAERS_DATA_PATH = "faers_data"
+from faers.settings import MYSQL_USER, MYSQL_PASS, MYSQL_HOST, MYSQL_DB, FAERS_DATA_PATH
 
 file_name_to_table_name = {
     'THER': 'therapy',
@@ -23,7 +22,7 @@ file_name_to_table_name = {
 
 
 def create_db(dbname):
-    mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass)
+    mydb = mysql.connector.connect(host=MYSQL_HOST, user=MYSQL_USER, passwd=MYSQL_PASS)
     s = input('are you sure you want to drop database "{}"?: '.format(dbname))
     if s != "y":
         return False
@@ -41,7 +40,7 @@ def create_db(dbname):
 
 def create_tables(valid_files):
     # read through all files once just to get the column names so we can create tables
-    engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
+    engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(MYSQL_USER, MYSQL_HOST, MYSQL_DB))
     columns = defaultdict(set)
     for zip_files in tqdm(valid_files):
         zip_filename = zip_files[0]
@@ -64,7 +63,7 @@ def create_tables(valid_files):
                 df[int_col] = df[int_col].astype(int)
         df.to_sql(table_name, engine, if_exists='replace', index=False)
 
-    mydb = mysql.connector.connect(host=mysql_host, user=mysql_user, passwd=mysql_pass, database=mysql_db)
+    mydb = mysql.connector.connect(host=MYSQL_HOST, user=MYSQL_USER, passwd=MYSQL_PASS, database=MYSQL_DB)
     cursor = mydb.cursor()
     cursor.execute("""alter table drug add index primaryid (primaryid)""")
     cursor.execute("""alter table drug add index role_cod (role_cod(4))""")
@@ -113,7 +112,7 @@ def get_valid_files():
 
 
 def import_data(valid_files):
-    engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(mysql_user, mysql_host, mysql_db))
+    engine = create_engine('mysql+mysqlconnector://{}@{}/{}'.format(MYSQL_USER, MYSQL_HOST, MYSQL_DB))
     for zip_files in tqdm(valid_files):
         zip_filename = zip_files[0]
         filename = zip_files[1]
@@ -134,7 +133,8 @@ def import_data(valid_files):
 
 
 if __name__ == "__main__":
-    assert create_db(mysql_db)
+
+    create_db(MYSQL_DB)
 
     valid_files = get_valid_files()
 
