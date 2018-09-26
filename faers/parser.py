@@ -129,7 +129,7 @@ def import_data(valid_files):
         df = pd.read_csv(h, delimiter="$", dtype=str)
         df = df.applymap(lambda x: x.strip()[:255] if pd.notnull(x) else x)
         df = df.applymap(lambda x: x if (x or pd.notnull(x)) else None)
-        df.to_sql(table_name, engine, chunksize=20000, if_exists='append', index=False)
+        df.to_sql(table_name, engine, chunksize=1000, if_exists='append', index=False)
 
 
 if __name__ == "__main__":
