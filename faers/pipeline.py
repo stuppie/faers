@@ -10,6 +10,7 @@ class Pipeline:
         # if first_time, it'll create the initial tables. otherwise, will assume tables exist and update using new files
         self.mydb = mysql.connector.connect(host=MYSQL_HOST, user=MYSQL_USER, passwd=MYSQL_PASS, database=MYSQL_DB)
         self.first_time = first_time
+        self.new_files = set()
 
     def download_new_files(self):
         self.new_files = downloader.download_new_files()
@@ -39,3 +40,8 @@ class Pipeline:
         normalize_indications.run()
         normalize_drugs.run()
         get_indications.run()
+
+
+if __name__ == "__main__":
+    p = Pipeline(first_time=False)
+    p.run()
