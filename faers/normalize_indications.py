@@ -80,8 +80,8 @@ def run():
     from indication_latest JOIN indication_mapping on
         indication_latest.indi_pt = indication_mapping.indi_pt
     """
-
     cursor = mydb.cursor()
+    cursor.execute(s)
     cursor.execute("""alter table indication_latest_norm add index PRIMARYID (PRIMARYID)""")
     cursor.execute("""alter table indication_latest_norm add index indi_drug_seq (indi_drug_seq)""")
     mydb.commit()
