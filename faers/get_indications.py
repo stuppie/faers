@@ -20,18 +20,18 @@ def run():
     FROM indication_latest_norm as indication
       LEFT JOIN drug_latest_norm as drug ON drug.primaryid = indication.primaryid AND
                         indication.indi_drug_seq = drug.drug_seq
-    WHERE drug.role_cod = ('PS') AND drug.drugname_in_cui = ({})
+    WHERE drug.role_cod = ('PS') AND drug.drugname_IN_MIN_cui = ({})
     GROUP BY indication_name,indication.indic_umls, indication.indic_hpo, indication.indic_mondo having count > 20
     ORDER BY count DESC
     """
 
-    all_drugs_query = """select drug.drugname_in_cui,
+    all_drugs_query = """select drug.drugname_IN_MIN_cui,
     GROUP_CONCAT(DISTINCT(drug.drugname) SEPARATOR '|') as drug_names
     from drug_latest_norm as drug
-    group by drug.drugname_in_cui"""
+    group by drug.drugname_IN_MIN_cui"""
     drug_df = pd.read_sql_query(all_drugs_query, mydb)
-    drug_cui_to_labels = dict(zip(drug_df.drugname_in_cui, drug_df.drug_names))
-    all_drugs = set(list(drug_df.drugname_in_cui))
+    drug_cui_to_labels = dict(zip(drug_df.drugname_IN_MIN_cui, drug_df.drug_names))
+    all_drugs = set(list(drug_df.drugname_IN_MIN_cui))
 
     indications = dict()
     for drug_cui in tqdm(all_drugs):
@@ -47,7 +47,7 @@ def run():
     indic_list = [
         {
             "drug_labels": drug_cui_to_labels[k],
-            "drug_rxcui": k,
+            "drug_rxcui": str(int(k)),
             "indications_mondo": "|".join(list(df.indic_mondo)),
             "indications_umls": "|".join(list(df.indic_umls)),
             "indications_label": "|".join(list(df.indication_name)),

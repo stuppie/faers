@@ -101,35 +101,36 @@ def run():
     source_target_in = dfpath_in.groupby("SOURCE_RXCUI").TARGET_RXCUI.apply(set).to_dict()
     source_target_in = {k: list(v)[0] for k, v in source_target_in.items() if len(v) == 1}
     source_target_min = dfpath_min.groupby("SOURCE_RXCUI").TARGET_RXCUI.apply(set).to_dict()
+    source_target_min = {k: list(v)[0] for k, v in source_target_min.items() if len(v) == 1}
 
-    drug['drugname_IN_cui'] = drug['drugname_cui'].map(lambda x: source_target_in.get(x, ''))
+    drug['drugname_IN_cui'] = drug['drugname_cui'].map(lambda x: source_target_in.get(x))
     drug['drugname_MIN_cui'] = drug['drugname_cui'].map(lambda x: source_target_min.get(x))
-    drug['drugname_IN_cui'] = drug['drugname_IN_cui'].combine_first(drug['drugname_MIN_cui'])
-    del drug['drugname_MIN_cui']
+    drug['drugname_IN_MIN_cui'] = drug['drugname_MIN_cui'].combine_first(drug['drugname_IN_cui'])
 
     # combine new duplicates cuis
-    drug = drug.groupby('drugname_IN_cui').agg({'c': sum, 'DRUGNAME_orig': sum}).reset_index()
+    drug = drug.groupby('drugname_IN_MIN_cui').agg({'c': sum, 'DRUGNAME_orig': sum}).reset_index()
     drug = drug.sort_values("c", ascending=False)
-    drug = drug[drug.drugname_IN_cui.map(bool)]
+    drug = drug[drug.drugname_IN_MIN_cui.map(bool)]
     # example of what this does now
-    # list(drug[drug.drugname_IN_cui == 632].DRUGNAME_orig)
+    # list(drug[drug.drugname_IN_MIN_cui == 632].DRUGNAME_orig)
+    # list(drug[drug.drugname_IN_MIN_cui == 214182].DRUGNAME_orig)
 
     #https://stackoverflow.com/questions/12680754/split-explode-pandas-dataframe-string-entry-to-separate-rows
-    b = pd.DataFrame(drug.DRUGNAME_orig.tolist(), index=drug.drugname_IN_cui).stack()
-    b = b.reset_index()[[0, 'drugname_IN_cui']]
-    b.columns = ['DRUGNAME_orig', 'drugname_IN_cui']
+    b = pd.DataFrame(drug.DRUGNAME_orig.tolist(), index=drug.drugname_IN_MIN_cui).stack()
+    b = b.reset_index()[[0, 'drugname_IN_MIN_cui']]
+    b.columns = ['DRUGNAME_orig', 'drugname_IN_MIN_cui']
     b.to_sql("drug_label_mapping", engine, if_exists='replace')
 
     # do the mapping and store in mysql. only keeping those with matched rxnorm IDs
     s = """
     CREATE TABLE drug_latest_norm
-    SELECT drugname_IN_cui, drug_latest.* from drug_latest JOIN drug_label_mapping on
+    SELECT drugname_IN_MIN_cui, drug_latest.* from drug_latest JOIN drug_label_mapping on
     drug_latest.DRUGNAME = drug_label_mapping.DRUGNAME_orig
     """
     cursor = mydb.cursor()
     cursor.execute(s)
 
-    cursor.execute("""alter table drug_latest_norm add index drugname_in_cui (drugname_in_cui)""")
+    cursor.execute("""alter table drug_latest_norm add index drugname_IN_MIN_cui (drugname_IN_MIN_cui)""")
     cursor.execute("""alter table drug_latest_norm add index PRIMARYID (PRIMARYID)""")
     mydb.commit()
 
