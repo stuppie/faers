@@ -6,6 +6,8 @@
 5. Run normalize_drugs.py
 6. Run get_indications.py
 
+## Data Download
+See here for download: https://zenodo.org/record/1436000
 
 ## Requirements
 
