@@ -3,7 +3,7 @@ bs4==0.0.1
 certifi==2018.8.24
 chardet==3.0.4
 idna==2.7
-lxml==4.2.5
+lxml==4.6.5
 mysql-connector==2.1.6
 numpy==1.15.1
 pandas==0.23.4
